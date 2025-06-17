@@ -28,7 +28,6 @@ settings/local.py
 *.pyc
 staticfiles/
 media/
-backend/
 dsbackend/
 qbackend/
 qdbackend/

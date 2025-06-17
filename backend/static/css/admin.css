@@ -1,0 +1,27 @@
+/* استفاده از فونت Google Fonts */
+@@font-face {
+    font-family: 'Ray Black';
+    src: 
+            /*url('{% static "fonts/myfont.woff2" %}') format('woff2'),*/
+         /*url('{% static "fonts/myfont.woff" %}') format('woff'),*/
+         url('{% static "fonts/ray/myfont.ttf" %}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Ray Black', sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Ray Black', sans-serif !important;
+}
+
+input[type="text"], input[type="password"] {
+    font-family: 'Ray Black', sans-serif !important;
+}
+
+#header {
+    background-color: #007BFF !important;
+    color: white !important;
+}

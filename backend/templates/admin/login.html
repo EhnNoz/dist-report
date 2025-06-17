@@ -1,0 +1,14 @@
+{% extends "admin/login.html" %}
+{% load static %}
+
+{% block extrahead %}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/admin.css' %}">
+{% endblock %}
+
+{% block title %}
+سامانه توزیع محتوا {{ block.super }}
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">سامانه توزیع محتوا</h1>
+{% endblock %}
