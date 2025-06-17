@@ -1,0 +1,49 @@
+# Ignore فایل‌های پایتون compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore محیط مجازی (virtual environment)
+venv/
+env/
+.venv/
+env01/
+.env01/
+
+# Ignore فایل‌های حساس
+*.env
+*.secret
+settings/local.py
+
+# Ignore فایل‌های پایگاه داده
+*.sqlite3
+*.db
+*.bak
+*.dat
+*.dir
+
+# Ignore فایل‌های تولیدشده توسط Django
+*.log
+*.pot
+*.pyc
+staticfiles/
+media/
+backend/
+dsbackend/
+qbackend/
+qdbackend/
+api/
+
+# Ignore فایل‌های IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore فایل‌های نود (اگر از frontend استفاده می‌کنید)
+node_modules/
+npm-debug.log*
+
+# Ignore فایل‌های سیستم عامل
+.DS_Store
+Thumbs.db
