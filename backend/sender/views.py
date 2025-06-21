@@ -3,6 +3,16 @@ from .models import Province, Channel, Post, Category, PlatformToken
 from .serializers import ProvinceSerializer, ChannelSerializer, PostSerializer, \
     CategorySerializer, PlatformTokenSerializer
 from django.core.exceptions import PermissionDenied
+from django_filters import rest_framework as filters
+
+
+class ChannelFilter(filters.FilterSet):
+    channel_id = filters.CharFilter(field_name='channel_id', lookup_expr='exact')
+    platform = filters.CharFilter(field_name='platform', lookup_expr='exact')
+
+    class Meta:
+        model = Channel
+        fields = ['channel_id', 'platform']
 
 
 class ProvinceViewSet(viewsets.ModelViewSet):
@@ -23,6 +33,8 @@ class PlatformTokenViewSet(viewsets.ModelViewSet):
 class ChannelViewSet(viewsets.ModelViewSet):
     queryset = Channel.objects.all()
     serializer_class = ChannelSerializer
+    filter_backends = [filters.DjangoFilterBackend]
+    filterset_class = ChannelFilter
 
 
 class PostViewSet(viewsets.ModelViewSet):
