@@ -20,3 +20,11 @@ class IsOwnerProvince(permissions.BasePermission):
         else:
             # اگر استان مشخص نشده باشد، فقط داده‌های استان کاربر قابل دسترسی است
             return True
+
+
+class IsSuperuser(permissions.BasePermission):
+    """
+    فقط سوپر ادمین می‌تونه دسترسی داشته باشه
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_superuser)

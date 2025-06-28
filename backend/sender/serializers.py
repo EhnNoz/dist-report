@@ -18,6 +18,9 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = '__all__'
+        extra_kwargs = {
+            'created_by': {'read_only': True}  # فقط خواندنی باشه | خودمون توی perform_create ست می‌کنیم
+        }
 
 
 class PlatformTokenSerializer(serializers.ModelSerializer):

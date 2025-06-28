@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-_9k179iv=c*pxmv(_b2^g#v1q6ne4b(x#8^tx+9&tbs^e%+2m)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', '192.168.115.31', '192.168.255.1']
+ALLOWED_HOSTS = ['127.0.0.1', '192.168.115.31', '192.168.255.1','10.32.213.15']
 
 
 # Application definition
@@ -91,7 +91,13 @@ ROOT_URLCONF = 'config.urls'
 # }
 
 REST_FRAMEWORK = {
-    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend']
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
 }
 
 TEMPLATES = [
