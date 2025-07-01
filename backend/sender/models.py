@@ -50,12 +50,19 @@ class Channel(models.Model):
         ('bale', 'Bale'),
         ('eitaa', 'Eitaa'),
     ]
+
+    TYPE_CHOICES = [
+        ('group', 'Group'),
+        ('channel', 'Channel')
+    ]
+
     name = models.CharField(max_length=100)
     channel_id = models.CharField(max_length=100)
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     province = models.ForeignKey(Province, on_delete=models.CASCADE)
     users = models.ManyToManyField(User, related_name='allowed_channels', blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دسته‌بندی")
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
     # allowed_users = models.ManyToManyField(User, related_name='allowed_channels')
 
     class Meta:
