@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from .models import Province, Channel, Post, Category, PlatformToken
 from .serializers import ProvinceSerializer, ChannelSerializer, PostSerializer, \
-    CategorySerializer, PlatformTokenSerializer, CurrentUserSerializer
+    CategorySerializer, PlatformTokenSerializer, CurrentUserSerializer, UserSerializer
 from django.core.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from rest_framework.permissions import IsAuthenticated
@@ -9,6 +9,7 @@ from .permissions import IsSuperuser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.auth import get_user_model
 
 
 class ChannelFilter(filters.FilterSet):
@@ -180,3 +181,20 @@ class CurrentUserViewSet(viewsets.ReadOnlyModelViewSet):
     def get_object(self):
         # می‌تونیم اینجا هم کاربر جاری رو برگردونیم
         return self.request.user
+
+
+User = get_user_model()
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = User.objects.all()
+
+    def list(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response(
+                {"detail": "دسترسی غیرمجاز. فقط سوپر ادمین می‌تواند این عمل را انجام دهد."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().list(request, *args, **kwargs)

@@ -18,12 +18,17 @@ class ChannelSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
+
+    # published_at_shamsi = serializers.CharField(write_only=True, required=False)
+
     class Meta:
         model = Post
         fields = '__all__'
         extra_kwargs = {
             'created_by': {'read_only': True}  # فقط خواندنی باشه | خودمون توی perform_create ست می‌کنیم
         }
+
+
 
 
 class PlatformTokenSerializer(serializers.ModelSerializer):
@@ -42,3 +47,9 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email']
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'is_active', 'is_superuser']
