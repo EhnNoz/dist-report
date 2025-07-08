@@ -51,81 +51,86 @@ def send_scheduled_post(post_id):
         # print("*************")
 
         for channel in post.channels.all():
-            chat_id = channel.channel_id  # مثلاً "@my_channel" یا "-1001234567890"
-            print(chat_id)
-            print("*************")
-            # titr = post.titr
-            caption = post.caption
-            # author = post.author
-            # hashtags = post.hashtags
+            try:
+                chat_id = channel.channel_id  # مثلاً "@my_channel" یا "-1001234567890"
+                print(chat_id)
+                print("*************")
+                # titr = post.titr
+                caption = post.caption
+                # author = post.author
+                # hashtags = post.hashtags
 
-            message = ""
-            # if titr:
-            #     message += f"{titr}\n\n"
-            if caption:
-                message += f"{caption}\n\n"
-            # if hashtags:
-            #     message += f"{hashtags}\n\n"
-            # if author:
-            #     message += f"<<{author}>>"
+                message = ""
+                # if titr:
+                #     message += f"{titr}\n\n"
+                if caption:
+                    message += f"{caption}\n\n"
+                # if hashtags:
+                #     message += f"{hashtags}\n\n"
+                # if author:
+                #     message += f"<<{author}>>"
 
-            platform = channel.platform
-            apiToken = tokens.get(platform)
-            print(platform)
+                platform = channel.platform
+                apiToken = tokens.get(platform)
+                print(platform)
 
-            if platform == 'telegram':
-                if insert_media == 'picture':
-                    apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'document': open(image_path, 'rb')})
-                elif insert_media == 'video':
-                    apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'document': open(image_path, 'rb')})
+                if platform == 'telegram':
+                    if insert_media == 'picture':
+                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'document': open(image_path, 'rb')})
+                    elif insert_media == 'video':
+                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'document': open(image_path, 'rb')})
+                    else:
+                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendMessage'
+                        response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+
+                elif platform == 'bale':
+                    if insert_media == 'picture':
+                        apiURL = f'https://tapi.bale.ai/bot{apiToken}/SendPhoto'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'photo': open(image_path, 'rb')})
+                    elif insert_media == 'video':
+                        apiURL = f'https://tapi.bale.ai/bot{apiToken}/SendVideo'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'video': open(image_path, 'rb')})
+                    else:
+                        apiURL = f'https://tapi.bale.ai/bot{apiToken}/sendMessage'
+                        response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+
+                elif platform == 'eitaa':
+                    if insert_media == 'picture':
+                        apiURL = f'https://eitaayar.ir/api/{apiToken}/sendFile'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'file': open(image_path, 'rb')})
+                    elif insert_media == 'video':
+                        apiURL = f'https://eitaayar.ir/api/{apiToken}/sendFile'
+                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                                                 files={'file': open(image_path, 'rb')})
+                    else:
+                        apiURL = f'https://eitaayar.ir/api/{apiToken}/sendMessage'
+                        response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+                        print(response)
+                        print(response.status_code)
+
                 else:
-                    apiURL = f'https://api.telegram.org/bot{apiToken}/sendMessage'
-                    response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+                    raise Exception(f"پلتفرم {platform} پشتیبانی نمی‌شود")
 
-            elif platform == 'bale':
-                if insert_media == 'picture':
-                    apiURL = f'https://tapi.bale.ai/bot{apiToken}/SendPhoto'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'photo': open(image_path, 'rb')})
-                elif insert_media == 'video':
-                    apiURL = f'https://tapi.bale.ai/bot{apiToken}/SendVideo'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'video': open(image_path, 'rb')})
-                else:
-                    apiURL = f'https://tapi.bale.ai/bot{apiToken}/sendMessage'
-                    response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+                # if platform == 'bale':
+                #     response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': caption},
+                #                         files={'photo': open(image_path, 'rb')})
+                # elif platform == 'eitaa':
+                #     print("*************")
 
-            elif platform == 'eitaa':
-                if insert_media == 'picture':
-                    apiURL = f'https://eitaayar.ir/api/{apiToken}/sendFile'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'file': open(image_path, 'rb')})
-                elif insert_media == 'video':
-                    apiURL = f'https://eitaayar.ir/api/{apiToken}/sendFile'
-                    response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                             files={'file': open(image_path, 'rb')})
-                else:
-                    apiURL = f'https://eitaayar.ir/api/{apiToken}/sendMessage'
-                    response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
-                    print(response)
-                    print(response.status_code)
+                # بررسی موفقیت ارسال
+                if response.status_code != 200:
+                    raise Exception(f"Failed to send to {chat_id}: {response.text}")
 
-            else:
-                raise Exception(f"پلتفرم {platform} پشتیبانی نمی‌شود")
-
-            # if platform == 'bale':
-            #     response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': caption},
-            #                         files={'photo': open(image_path, 'rb')})
-            # elif platform == 'eitaa':
-            #     print("*************")
-
-            # بررسی موفقیت ارسال
-            if response.status_code != 200:
-                raise Exception(f"Failed to send to {chat_id}: {response.text}")
+            except Exception as e:
+                print(f"Error sending to {channel.channel_id}: {str(e)}")
+                continue  # خطای یک چنل نباید جلوی بقیه رو بگیره
 
         try:
             os.remove(image_path)

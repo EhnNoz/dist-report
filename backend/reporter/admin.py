@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Channel, ChannelMember, Post, Author, Province, Platform
+from .models import Channel, ChannelMember, Post, Author, Province, Platform, UserProfile
 
 @admin.register(Province)
 class ProvinceAdmin(admin.ModelAdmin):
@@ -47,3 +47,10 @@ class PostAdmin(admin.ModelAdmin):
     list_display = ('channel', 'collected_at', 'views')
     list_filter = ('channel__platform', 'channel__province', 'collected_at')
     search_fields = ('post_text', 'hashtags')
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user',)
+    # search_fields = ('user__username',)
+    # raw_id_fields = ('user', 'channel')

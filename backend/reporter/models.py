@@ -129,6 +129,15 @@ class Author(models.Model):
         return f"{self.name} {self.family}"
 
 
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    channels = models.ManyToManyField('Channel', blank=True, verbose_name="کانال‌های مرتبط")
+    can_access_panel = models.BooleanField("دسترسی به پنل", default=False)
+
+    def __str__(self):
+        return self.user.username
+
+
 # class UserChannelAccess(models.Model):
 #     user = models.ForeignKey(User, on_delete=models.CASCADE)
 #     channel = models.ForeignKey(Channel, on_delete=models.CASCADE)
