@@ -157,9 +157,9 @@ class PostViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("شما باید وارد حساب کاربری خود شوید.")
 
         if not user.is_superuser:
-            return self.queryset.filter(created_by=user)
+            return Post.objects.filter(created_by=user)
 
-        return self.queryset
+        return Post.objects.all()
 
     def perform_create(self, serializer):
         # ✅ اینجا created_by خودکار با کاربر لاگین‌کرده ست می‌شه

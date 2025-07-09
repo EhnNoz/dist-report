@@ -148,3 +148,11 @@ class MemberTrendSerializer(serializers.Serializer):
 class MemberTrendChartSerializer(serializers.Serializer):
     categories = serializers.ListField(child=serializers.DateField(format='%Y-%m-%d'))
     data = serializers.ListField(child=serializers.IntegerField())
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name']
+
+

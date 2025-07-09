@@ -134,6 +134,10 @@ class UserProfile(models.Model):
     channels = models.ManyToManyField('Channel', blank=True, verbose_name="کانال‌های مرتبط")
     can_access_panel = models.BooleanField("دسترسی به پنل", default=False)
 
+    class Meta:
+        verbose_name = "دسترسی پنل"
+        verbose_name_plural = "دسترسی پنل"
+
     def __str__(self):
         return self.user.username
 
@@ -152,3 +156,5 @@ class UserProfile(models.Model):
 #
 #     class Meta:
 #         unique_together = ('user', 'author')
+
+

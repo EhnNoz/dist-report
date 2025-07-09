@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django_jalali',
     'sender.apps.SenderConfig',
     'reporter.apps.ReporterConfig',
+    'support.apps.SupportConfig',
     # 'sender.apps.ServicesConfig',
     'django_celery_beat',
     'django_celery_results',

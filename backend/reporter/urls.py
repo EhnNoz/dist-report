@@ -1,7 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import DashboardViewSet, PlatformStatsViewSet, ChannelStatsViewSet, ChannelListViewSet, AuthorStatsViewSet,\
-    PostViewSet, ChannelMemberViewSet, ReadOnlyAuthorViewSet, ReadOnlyChannelViewSet, ChannelMemberTrendViewSet
+    PostViewSet, ChannelMemberViewSet, ReadOnlyAuthorViewSet, ReadOnlyChannelViewSet, ChannelMemberTrendViewSet, \
+    UserLastPostsViewSet
 
 
 router = DefaultRouter()
@@ -15,6 +16,8 @@ router.register(r'channel-members', ChannelMemberViewSet, basename='channel-memb
 router.register(r'authors', ReadOnlyAuthorViewSet, basename='author')
 router.register(r'channel-code', ReadOnlyChannelViewSet, basename='channel-code')
 router.register(r'member-trend', ChannelMemberTrendViewSet, basename='member-trend')
+router.register(r'user-posts', UserLastPostsViewSet, basename='user-posts')
+
 
 
 urlpatterns = [

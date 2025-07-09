@@ -1,5 +1,5 @@
 from collections import Counter
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Q, Sum, Count, OuterRef, Subquery
@@ -112,14 +112,23 @@ class DashboardViewSet(viewsets.ViewSet):
         total_authors = authors.count()
 
         # 📈 روند انتشار
-        trend = posts.values('collected_at').annotate(count=Count('id'))
+        # trend = posts.values('collected_at').annotate(count=Count('id').order_by('collected_at'))
+        trend = (
+            posts.values('collected_at')
+                .annotate(count=Count('id'))
+                .order_by('-collected_at')  # ✅ اینجا داده‌ها به صورت صعودی سورت شدن
+        )
         daily_trend = [{
             "categories": [item['collected_at'].strftime("%Y-%m-%d") for item in trend],
             "data": [item['count'] for item in trend]
         }]
 
         # 👁️ روند بازدید
-        view_trend = posts.values('collected_at').annotate(total_views=Sum('views'))
+        view_trend = (
+            posts.values('collected_at')
+                .annotate(total_views=Sum('views'))
+                .order_by('collected_at')  # ✅ سورت به ترتیب صعودی
+        )
         daily_view_trend = [{
             "categories": [item['collected_at'].strftime("%Y-%m-%d") for item in view_trend],
             "data": [item['total_views'] for item in view_trend]
@@ -668,4 +677,99 @@ class ChannelMemberTrendViewSet(viewsets.ViewSet):
             "chart": chart_format,
             "total_members": total_members
         })
+
+
+class UserLastPostsViewSet(viewsets.ViewSet):
+    """
+    نمایش پست‌های کاربر با تمام فیلترهای ممکن
+    """
+
+    def list(self, request):
+        user = request.user
+
+        # 🔐 بررسی دسترسی کاربر به کانال‌ها
+        if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
+            return Response(
+                {"error": "شما به هیچ کانالی دسترسی ندارید."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 🎯 دریافت تمام پارامترهای فیلتر
+        search_query = request.query_params.get('search')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        platform_id = request.query_params.get('platform')
+        province_id = request.query_params.get('province')
+        author_id = request.query_params.get('author')
+        channel_id = request.query_params.get('channel')
+
+        # 🛡️ فیلترهای پایه - فقط کانال‌های مجاز کاربر
+        base_filters = {
+            'channel__in': user.userprofile.channels.all()
+        }
+
+        # ➕ افزودن فیلترهای اختیاری
+        if channel_id:
+            base_filters['channel__id'] = channel_id
+        if author_id:
+            base_filters['author__id'] = author_id
+        if platform_id:
+            base_filters['channel__platform__id'] = platform_id
+        if province_id:
+            base_filters['channel__province__id'] = province_id
+
+        # 📝 دریافت پست‌ها با فیلترهای پایه
+        posts = Post.objects.filter(**base_filters)
+
+        # 🔍 فیلتر جستجو (اگر وجود دارد)
+        if search_query:
+            posts = posts.filter(
+                Q(post_text__icontains=search_query) |
+                Q(hashtags__icontains=search_query) |
+                Q(author__name__icontains=search_query) |
+                Q(author__family__icontains=search_query) |
+                Q(channel__name__icontains=search_query)
+            ).distinct()
+
+        # 📅 فیلتر تاریخ (اگر وجود دارد)
+        start_date_parsed = parse_date(start_date) if start_date else None
+        end_date_parsed = parse_date(end_date) if end_date else None
+
+        if start_date and end_date:
+            if not start_date_parsed or not end_date_parsed:
+                return Response(
+                    {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
+
+        # محاسبه آمار قبل از محدود کردن
+        total_posts = posts.count()
+        total_views = posts.aggregate(Sum('views'))['views__sum'] or 0
+
+        # مرتب‌سازی و محدود کردن نتایج
+        posts = posts.select_related(
+            'channel',
+            'author',
+            'channel__platform',
+            'channel__province'
+        ).order_by('-collected_at')[:10]  # 10 پست آخر
+
+        serializer = PostSerializer(posts, many=True)
+
+        return Response({
+            "total_posts": total_posts,
+            "total_views": total_views,
+            "filters": {
+                "platform": platform_id,
+                "province": province_id,
+                "author": author_id,
+                "channel": channel_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "search_query": search_query
+            },
+            "posts": serializer.data
+        })
+
 
