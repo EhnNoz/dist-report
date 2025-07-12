@@ -20,8 +20,8 @@ class PlatformAdmin(admin.ModelAdmin):
 
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
+    list_display = ('id', 'name', 'family', 'username')
+    search_fields = ('id', 'name', 'family', 'username')
 
 
 @admin.register(Channel)

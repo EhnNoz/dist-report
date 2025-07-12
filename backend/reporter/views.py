@@ -10,6 +10,8 @@ from .serializers import *
 # from rest_framework.filters import SearchFilter
 from .permissions import CanAccessPanel
 import jdatetime
+from django_filters.rest_framework import DjangoFilterBackend
+
 
 def parse_date(date_str):
     """تبدیل تاریخ با فرمت‌های مختلف (شمسی و میلادی) به date object"""
@@ -116,7 +118,7 @@ class DashboardViewSet(viewsets.ViewSet):
         trend = (
             posts.values('collected_at')
                 .annotate(count=Count('id'))
-                .order_by('-collected_at')  # ✅ اینجا داده‌ها به صورت صعودی سورت شدن
+                .order_by('collected_at')  # ✅ اینجا داده‌ها به صورت صعودی سورت شدن
         )
         daily_trend = [{
             "categories": [item['collected_at'].strftime("%Y-%m-%d") for item in trend],
@@ -184,14 +186,14 @@ class DashboardViewSet(viewsets.ViewSet):
         # 🔤 کلمات - فقط بر اساس انتشار
         word_list = []
         for p in posts:
-            word_list.extend(p.post_text.split())
+            word_list.extend((p.post_text or "").split())
         word_freq = Counter(word_list).most_common(10)
         top_words_by_post = [{"name": w[0], "weight": w[1]} for w in word_freq]
 
         # #️⃣ هشتگ‌ها - فقط بر اساس انتشار
         hashtag_list = []
         for p in posts:
-            hashtag_list.extend(p.hashtags.split())
+            hashtag_list.extend((p.hashtags or "").split())
         hashtag_freq = Counter(hashtag_list).most_common(10)
         top_hashtags_by_post = [{"name": h[0], "weight": h[1]} for h in hashtag_freq]
 
@@ -771,5 +773,13 @@ class UserLastPostsViewSet(viewsets.ViewSet):
             },
             "posts": serializer.data
         })
+
+
+class AuthorViewSet(viewsets.ModelViewSet):
+    queryset = Author.objects.all()
+    serializer_class = AuthorUpdateSerializer
+    permission_classes = [CanAccessPanel]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['name', 'family', 'username']
 
 

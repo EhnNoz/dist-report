@@ -112,7 +112,7 @@ class AuthorStatsSerializer(serializers.Serializer):
 class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ['id', 'channel', 'author', 'post_text', 'hashtags', 'views', 'collected_at']
+        fields = '__all__'
         # read_only_fields = ['collected_at']
 
 
@@ -154,5 +154,17 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'first_name', 'last_name']
+
+
+class AuthorUpdateSerializer(serializers.ModelSerializer):
+    # full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Author
+        fields = '__all__'
+        # read_only_fields = fields
+
+    # def get_full_name(self, obj):
+    #     return f"{obj.name} {obj.family}"
 
 

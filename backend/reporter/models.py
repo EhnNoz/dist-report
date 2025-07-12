@@ -38,11 +38,71 @@ class ChannelMember(models.Model):
 # مدل ۳: پست کانال
 class Post(models.Model):
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='posts', verbose_name="کانال")
-    post_text = models.TextField("متن پست")
-    hashtags = models.TextField("هشتگ‌ها")  # "tag1 tag2 tag3"
+    post_text = models.TextField("متن پست", null=True, blank=True)
+    hashtags = models.TextField("هشتگ‌ها", null=True, blank=True)  # "tag1 tag2 tag3"
     author = models.ForeignKey('Author', on_delete=models.CASCADE, verbose_name="نویسنده")
     views = models.PositiveIntegerField("تعداد بازدید")
     collected_at = models.DateField("تاریخ جمع‌آوری")
+
+    # فیلدهای جدید
+    update_id = models.PositiveIntegerField("Update ID", null=True, blank=True)
+    message_id = models.PositiveIntegerField("Message ID", null=True, blank=True)
+    chat_id = models.CharField("Chat ID", max_length=100, null=True, blank=True)
+    chat_type = models.CharField("Chat Type", max_length=50, null=True, blank=True)
+
+    sender_id = models.BigIntegerField("Sender ID", null=True, blank=True)
+    sender_is_bot = models.BooleanField("Is Bot", default=False)
+    sender_name = models.CharField("Sender Name", max_length=255, null=True, blank=True)
+    sender_username = models.CharField("Sender Username", max_length=255, null=True, blank=True)
+
+    has_media = models.BooleanField("دارای مدیا", default=False)
+
+    # Photo Fields
+    photo_file_id = models.CharField("Photo File ID", max_length=500, null=True, blank=True)
+    photo_file_unique_id = models.CharField("Photo Unique ID", max_length=255, null=True, blank=True)
+    photo_width = models.PositiveIntegerField("Photo Width", null=True, blank=True)
+    photo_height = models.PositiveIntegerField("Photo Height", null=True, blank=True)
+    photo_file_size = models.PositiveIntegerField("Photo File Size", null=True, blank=True)
+
+    # Video Fields
+    video_file_id = models.CharField("Video File ID", max_length=500, null=True, blank=True)
+    video_file_unique_id = models.CharField("Video Unique ID", max_length=255, null=True, blank=True)
+    video_width = models.PositiveIntegerField("Video Width", null=True, blank=True)
+    video_height = models.PositiveIntegerField("Video Height", null=True, blank=True)
+    video_duration = models.PositiveIntegerField("Video Duration", null=True, blank=True)
+    video_file_size = models.PositiveIntegerField("Video File Size", null=True, blank=True)
+
+    # Document Fields
+    document_file_id = models.CharField("Document File ID", max_length=500, null=True, blank=True)
+    document_file_unique_id = models.CharField("Document Unique ID", max_length=255, null=True, blank=True)
+    document_file_name = models.CharField("Document File Name", max_length=255, null=True, blank=True)
+    document_mime_type = models.CharField("Document MIME Type", max_length=100, null=True, blank=True)
+    document_file_size = models.PositiveIntegerField("Document File Size", null=True, blank=True)
+
+    # Forward Info
+    forward_from_id = models.BigIntegerField("Forward From ID", null=True, blank=True)
+    forward_from_name = models.CharField("Forward From Name", max_length=255, null=True, blank=True)
+    forward_from_username = models.CharField("Forward From Username", max_length=255, null=True, blank=True)
+    forward_date = models.DateTimeField("Forward Date", null=True, blank=True)
+
+    forward_from_chat_id = models.CharField("Forward From Chat ID", max_length=100, null=True, blank=True)
+    forward_from_chat_title = models.CharField("Forward From Chat Title", max_length=255, null=True, blank=True)
+    forward_from_chat_username = models.CharField("Forward From Chat Username", max_length=255, null=True, blank=True)
+    forward_from_message_id = models.PositiveIntegerField("Forward From Message ID", null=True, blank=True)
+
+    forward_origin_type = models.CharField("Forward Origin Type", max_length=50, null=True, blank=True)
+    forward_origin_sender_id = models.BigIntegerField("Forward Origin Sender ID", null=True, blank=True)
+    forward_origin_sender_name = models.CharField("Forward Origin Sender Name", max_length=255, null=True, blank=True)
+
+    entities = models.JSONField("Entities", null=True, blank=True)  # برای ذخیره لیست entityها
+    reply_to_message_id = models.PositiveIntegerField("Reply To Message ID", null=True, blank=True)
+
+    views = models.PositiveIntegerField("تعداد بازدید", default=0)
+    collected_at = models.DateField("تاریخ جمع‌آوری")
+
+    # ✅ فیلد جدید: date - تاریخ ارسال پیام در تلگرام
+    date = models.DateTimeField("تاریخ ارسال پیام", null=True, blank=True)
+
 
     class Meta:
         verbose_name = "پست"
@@ -86,6 +146,7 @@ class Author(models.Model):
 
     name = models.CharField("نام", max_length=100)
     family = models.CharField("نام خانوادگی", max_length=100)
+    username = models.CharField("نام کاربری", max_length=100)
     national_code = models.CharField(
         "کد ملی",
         max_length=10,
