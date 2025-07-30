@@ -34,11 +34,22 @@ class ProvinceViewSet(viewsets.ModelViewSet):
     serializer_class = ProvinceSerializer
     permission_classes = [IsAuthenticated]
 
+    # def get_queryset(self):
+    #     user = self.request.user
+    #
+    #     if not user.is_authenticated:
+    #         raise PermissionDenied("شما باید وارد حساب کاربری خود شوید.")
+    #
+    #     return Province.objects.filter(channel__users=user).distinct()
+
     def get_queryset(self):
         user = self.request.user
 
         if not user.is_authenticated:
             raise PermissionDenied("شما باید وارد حساب کاربری خود شوید.")
+
+        if user.is_superuser:
+            return Province.objects.all()
 
         return Province.objects.filter(channel__users=user).distinct()
 
@@ -72,11 +83,22 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
 
+    # def get_queryset(self):
+    #     user = self.request.user
+    #
+    #     if not user.is_authenticated:
+    #         raise PermissionDenied("شما باید وارد حساب کاربری خود شوید.")
+    #
+    #     return Category.objects.filter(channel__users=user).distinct()
+
     def get_queryset(self):
         user = self.request.user
 
         if not user.is_authenticated:
             raise PermissionDenied("شما باید وارد حساب کاربری خود شوید.")
+
+        if user.is_superuser:
+            return Category.objects.all()
 
         return Category.objects.filter(channel__users=user).distinct()
 

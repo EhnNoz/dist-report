@@ -9,7 +9,8 @@ env/
 .venv/
 env01/
 .env01/
-
+env02/
+.env02/
 # Ignore فایل‌های حساس
 *.env
 *.secret

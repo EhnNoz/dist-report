@@ -6,9 +6,25 @@ from django.conf import settings
 from datetime import datetime
 import logging
 from django.utils import timezone
+import asyncio
+from telegram import Bot
+from telegram.request import HTTPXRequest
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+proxy_url = os.getenv("PROXY_URL")
+
 
 logger = logging.getLogger(__name__)
 
+proxies = {
+    'http': 'socks5://test:test2915@37.156.146.155:9443',
+    'https': 'socks5://test:test2915@37.156.146.155:9443'
+}
+
+# import sys
+# sys.setrecursionlimit(2000)
 
 @shared_task
 def send_scheduled_post(post_id):
@@ -54,6 +70,8 @@ def send_scheduled_post(post_id):
             try:
                 chat_id = channel.channel_id  # مثلاً "@my_channel" یا "-1001234567890"
                 print(chat_id)
+                # chat_id = str(chat_id)
+                print(type(chat_id))
                 print("*************")
                 # titr = post.titr
                 caption = post.caption
@@ -65,6 +83,7 @@ def send_scheduled_post(post_id):
                 #     message += f"{titr}\n\n"
                 if caption:
                     message += f"{caption}\n\n"
+                print(type(message))
                 # if hashtags:
                 #     message += f"{hashtags}\n\n"
                 # if author:
@@ -76,16 +95,82 @@ def send_scheduled_post(post_id):
 
                 if platform == 'telegram':
                     if insert_media == 'picture':
-                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
-                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                                 files={'document': open(image_path, 'rb')})
+                        # apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
+                        # response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                        #                          files={'document': open(image_path, 'rb')}, proxies=proxies)
+                        async def send_photo():
+                            # proxy_url = "socks5://test:test2915@37.156.146.155:9443"  # پروکسی شما
+                            request = HTTPXRequest(proxy=proxy_url,connect_timeout=10_000, read_timeout=10_000)
+                            bot = Bot(token=apiToken, request=request)
+                            await bot.send_photo(
+                                chat_id=chat_id,
+                                photo=open(image_path, 'rb'),
+                                caption=message
+                            )
+                            # await bot.send_message(chat_id=chat_id, text=message)
+                            # try:
+                            #     await bot.send_photo(
+                            #         chat_id=chat_id,
+                            #         photo=open(image_path, 'rb'),
+                            #         caption=message
+                            #     )
+                            #     return {"status_code": 200, "message": "پیام با موفقیت ارسال شد"}
+                            # except Exception as e:
+                            #     return {"status_code": 500, "error": str(e)}
+
+                        asyncio.run(send_photo())
                     elif insert_media == 'video':
-                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
-                        response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
-                                                 files={'document': open(image_path, 'rb')})
+                        # apiURL = f'https://api.telegram.org/bot{apiToken}/sendDocument'
+                        # response = requests.post(apiURL, data={'chat_id': chat_id, 'caption': message},
+                        #                          files={'document': open(image_path, 'rb')}, proxies=proxies)
+                        print(apiToken)
+                        print("******************")
+
+                        async def send_video():
+                            # request = HTTPXRequest(connect_timeout=30_000, read_timeout=30_000)
+
+                            # proxy_url = "socks5://test:test2915@37.156.146.155:9443"  # پروکسی شما
+                            request = HTTPXRequest(proxy=proxy_url,connect_timeout=15_000, read_timeout=15_000)
+                            bot = Bot(token=apiToken, request=request)
+                            # await bot.send_message(chat_id=chat_id, text=message)
+                            await bot.send_video(
+                                chat_id=chat_id,
+                                video=open(image_path, 'rb'),
+                                caption=message
+                            )
+                            # try:
+                            #     await bot.send_video(
+                            #         chat_id=chat_id,
+                            #         video=open(image_path, 'rb'),
+                            #         caption=message
+                            #     )
+                            #     return {"status_code": 200, "message": "پیام با موفقیت ارسال شد"}
+                            # except Exception as e:
+                            #     return {"status_code": 500, "error": str(e)}
+
+                        asyncio.run(send_video())
                     else:
-                        apiURL = f'https://api.telegram.org/bot{apiToken}/sendMessage'
-                        response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+                        print(apiToken)
+                        print("******************")
+
+                        async def send_message():
+                            # print(proxy_url)
+                            # proxy_url = "socks5://test:test2915@37.156.146.155:9443"  # پروکسی شما
+                            request = HTTPXRequest(proxy=proxy_url,connect_timeout=7_000, read_timeout=7_000)
+                            bot = Bot(token=apiToken, request=request)
+                            await bot.send_message(chat_id=chat_id, text=message)
+                            # try:
+                            #     await bot.send_message(chat_id=chat_id, text=message)
+                            #     return {"status_code": 200, "message": "پیام با موفقیت ارسال شد"}
+                            # except Exception as e:
+                            #     return {"status_code": 500, "error": str(e)}
+
+                        asyncio.run(send_message())
+                        #
+                        # apiURL = f'https://api.telegram.org/bot{apiToken}/sendMessage'
+                        # response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message}, proxies=proxies)
+                        # # response = requests.post(apiURL, json={'chat_id': chat_id, 'text': message})
+                        # print(response)
 
                 elif platform == 'bale':
                     if insert_media == 'picture':

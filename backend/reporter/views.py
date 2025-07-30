@@ -45,19 +45,31 @@ def parse_date(date_str):
 
 
 class DashboardViewSet(viewsets.ViewSet):
-    # permission_classes = [IsAdminOrOwnProvince]
-    # filter_backends = [SearchFilter]
-    # search_fields = ['name', 'family', 'national_code', 'email', 'expertise']
-
     def list(self, request):
         user = request.user
         search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        author_id = request.query_params.get('author')
-        channel_id = request.query_params.get('channel')
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        platform_str = request.query_params.get('platform', '')
+        province_str = request.query_params.get('province', '')
+        author_str = request.query_params.get('author', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تبدیل رشته "1,2,3" به لیست اعداد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        platform_ids = parse_ids(platform_str)
+        province_ids = parse_ids(province_str)
+        author_ids = parse_ids(author_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -66,18 +78,31 @@ class DashboardViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['province_id'] = province_id
-        if platform_id:
-            filters['platform_id'] = platform_id
-        if channel_id:
-            filters['id'] = channel_id
-        if author_id:
-            filters['posts__author_id'] = author_id
+        # ✅ اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['province_id__in'] = province_ids
+
+        if platform_ids:
+            filters['platform_id__in'] = platform_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'id__in' in filters:
+                valid_channels = filters['id__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['id__in'] = list(valid_channels)
+            else:
+                filters['id__in'] = list(requested_channel_ids)
+
+        if author_ids:
+            filters['posts__author_id__in'] = author_ids
 
         # 📦 داده‌های اصلی
         channels = Channel.objects.filter(**filters)
@@ -91,7 +116,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 Q(channel__name__icontains=search_query)
             ).distinct()
 
-        # فیلتر تاریخ
+        # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -109,53 +134,59 @@ class DashboardViewSet(viewsets.ViewSet):
         total_views = posts.aggregate(Sum('views'))['views__sum'] or 0
 
         # 👥 تعداد نویسندگان
-        author_ids = posts.values_list('author', flat=True).distinct()
-        authors = Author.objects.filter(id__in=author_ids)
+        post_author_ids = posts.values_list('author', flat=True).distinct()
+        authors = Author.objects.filter(id__in=post_author_ids)
         total_authors = authors.count()
 
         # 📈 روند انتشار
-        # trend = posts.values('collected_at').annotate(count=Count('id').order_by('collected_at'))
         trend = (
             posts.values('collected_at')
-                .annotate(count=Count('id'))
-                .order_by('collected_at')  # ✅ اینجا داده‌ها به صورت صعودی سورت شدن
+            .annotate(count=Count('id'))
+            .order_by('collected_at')
         )
         daily_trend = [{
             "categories": [item['collected_at'].strftime("%Y-%m-%d") for item in trend],
-            "data": [item['count'] for item in trend]
+            "data": [item['count'] for item in trend],
+            "color": "#b2532f"
         }]
 
         # 👁️ روند بازدید
         view_trend = (
             posts.values('collected_at')
-                .annotate(total_views=Sum('views'))
-                .order_by('collected_at')  # ✅ سورت به ترتیب صعودی
+            .annotate(total_views=Sum('views'))
+            .order_by('collected_at')
         )
         daily_view_trend = [{
             "categories": [item['collected_at'].strftime("%Y-%m-%d") for item in view_trend],
-            "data": [item['total_views'] for item in view_trend]
+            "data": [item['total_views'] for item in view_trend],
+            "color": "#b2532f"
         }]
 
+        # COLORS = [
+        #     "#347928", "#C0EBA6", "#FFFBE6", "#FCCD2A", "#38C172",
+        #     "#50C878", "#69B076", "#77DD77", "#88C999", "#A8D8B9"
+        # ]
+
         COLORS = [
-            "#347928", "#C0EBA6", "#FFFBE6", "#FCCD2A", "#38C172",
-            "#50C878", "#69B076", "#77DD77", "#88C999", "#A8D8B9"
+            "#9b4929", "#b2532f", "#fe7743", "#fe8e63", "#feb092",
+            "#ffc7b2", "#fff1ec", "#fff1ec", "#fff1ec", "#fff1ec"
         ]
 
         # 📊 کانال‌های برتر برحسب پست
-        top_channels_by_post = Channel.objects.filter(**filters).annotate(
+        top_channels_by_post_qs = Channel.objects.filter(**filters).annotate(
             post_count=Count('posts', filter=Q(posts__in=posts))
         ).order_by('-post_count')[:10]
-        channel_categories = [c.name for c in top_channels_by_post]
-        channel_data = [c.post_count for c in top_channels_by_post]
+        channel_categories = [c.name for c in top_channels_by_post_qs]
+        channel_data = [c.post_count for c in top_channels_by_post_qs]
         series = [{"y": d, "color": COLORS[i % len(COLORS)]} for i, d in enumerate(channel_data)]
         top_channels_by_post = [{"categories": channel_categories, "data": series}]
 
         # 👁️ کانال‌های برتر برحسب بازدید
-        top_channels_by_view = Channel.objects.filter(**filters).annotate(
+        top_channels_by_view_qs = Channel.objects.filter(**filters).annotate(
             total_views=Sum('posts__views', filter=Q(posts__in=posts))
         ).order_by('-total_views')[:10]
-        channel_categories = [c.name for c in top_channels_by_view]
-        channel_data = [c.total_views for c in top_channels_by_view]
+        channel_categories = [c.name for c in top_channels_by_view_qs]
+        channel_data = [c.total_views for c in top_channels_by_view_qs]
         series = [{"y": d, "color": COLORS[i % len(COLORS)]} for i, d in enumerate(channel_data)]
         top_channels_by_view = [{"categories": channel_categories, "data": series}]
 
@@ -199,28 +230,55 @@ class DashboardViewSet(viewsets.ViewSet):
 
         # 📈 تعداد پست‌ها بر اساس پلتفرم
         # platform_post_counts = (
-        #     channels.values('platform__name').annotate(count=Count('id')).order_by('-count')
+        #     Channel.objects.filter(**filters)
+        #     .values('platform__name')
+        #     .annotate(count=Count('posts', filter=Q(posts__in=posts)))
+        #     .order_by('-count')
         # )
+        # platform_post_counts_list = [
+        #     {"name": item['platform__name'], "y": item['count']} for item in platform_post_counts
+        # ]
+
         platform_post_counts = (
             Channel.objects.filter(**filters)
                 .values('platform__name')
                 .annotate(count=Count('posts', filter=Q(posts__in=posts)))
                 .order_by('-count')
         )
-        platform_post_counts_list = [{"name": item['platform__name'], "y": item['count']} for item in platform_post_counts]
+
+        platform_post_counts_list = [
+            {
+                "name": item['platform__name'],
+                "y": item['count'],
+                "color": COLORS[i % len(COLORS)]
+            }
+            for i, item in enumerate(platform_post_counts)
+        ]
 
         # 👁️ مجموع بازدیدها بر اساس پلتفرم
         # platform_total_views = (
-        #     channels.values('platform__name').annotate(total_views=Sum('posts__views')).order_by('-total_views')
+        #     Channel.objects.filter(**filters)
+        #     .values('platform__name')
+        #     .annotate(total_views=Sum('posts__views', filter=Q(posts__in=posts)))
+        #     .order_by('-total_views')
         # )
+        # platform_total_views_list = [
+        #     {"name": item['platform__name'], "y": item['total_views'] or 0} for item in platform_total_views
+        # ]
         platform_total_views = (
             Channel.objects.filter(**filters)
                 .values('platform__name')
                 .annotate(total_views=Sum('posts__views', filter=Q(posts__in=posts)))
                 .order_by('-total_views')
         )
+
         platform_total_views_list = [
-            {"name": item['platform__name'], "y": item['total_views'] or 0} for item in platform_total_views
+            {
+                "name": item['platform__name'],
+                "y": item['total_views'] or 0,
+                "color": COLORS[i % len(COLORS)]
+            }
+            for i, item in enumerate(platform_total_views)
         ]
 
         return Response({
@@ -247,9 +305,24 @@ class PlatformStatsViewSet(viewsets.ViewSet):
         search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        province_id = request.query_params.get('province')
-        author_id = request.query_params.get('author')
-        channel_id = request.query_params.get('channel')
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        province_str = request.query_params.get('province', '')
+        author_str = request.query_params.get('author', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        province_ids = parse_ids(province_str)
+        author_ids = parse_ids(author_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -258,20 +331,34 @@ class PlatformStatsViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['province_id'] = province_id
-        if author_id:
-            filters['posts__author_id'] = author_id
-        if channel_id:
-            filters['id'] = channel_id
+        # 🧩 اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['province_id__in'] = province_ids
 
-        channels = Channel.objects.filter(**filters)
+        if author_ids:
+            filters['posts__author_id__in'] = author_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'id__in' in filters:
+                valid_channels = filters['id__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['id__in'] = list(valid_channels)
+            else:
+                filters['id__in'] = list(requested_channel_ids)
+
+        # ✅ فیلتر کانال‌ها
+        channels = Channel.objects.filter(**filters).distinct()
         posts = Post.objects.filter(channel__in=channels)
 
+        # 🔍 جستجو
         if search_query:
             posts = posts.filter(
                 Q(post_text__icontains=search_query) |
@@ -280,6 +367,7 @@ class PlatformStatsViewSet(viewsets.ViewSet):
                 Q(channel__name__icontains=search_query)
             ).distinct()
 
+        # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -287,13 +375,11 @@ class PlatformStatsViewSet(viewsets.ViewSet):
             if not start_date_parsed or not end_date_parsed:
                 return Response(
                     {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
             posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
-        total_posts = posts.count()
-        total_views = posts.aggregate(Sum('views'))['views__sum'] or 0
-
+        # 📊 محاسبه آمار بر اساس پلتفرم
         platforms = Platform.objects.all()
         result = []
 
@@ -314,21 +400,35 @@ class PlatformStatsViewSet(viewsets.ViewSet):
                 "total_views": platform_total_views
             })
 
+        # ✅ خروجی دقیقاً مثل قبل: فقط یک لیست
         return Response(result)
 
-
 class ChannelStatsViewSet(viewsets.ViewSet):
-    # permission_classes = [IsAdminOrOwnProvince]
-
     def list(self, request):
         user = request.user
         search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        author_id = request.query_params.get('author')
-        channel_id = request.query_params.get('channel')
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        province_str = request.query_params.get('province', '')
+        platform_str = request.query_params.get('platform', '')
+        author_str = request.query_params.get('author', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        province_ids = parse_ids(province_str)
+        platform_ids = parse_ids(platform_str)
+        author_ids = parse_ids(author_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -337,25 +437,52 @@ class ChannelStatsViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['province_id'] = province_id
-        if platform_id:
-            filters['platform_id'] = platform_id
-        if author_id:
-            filters['posts__author_id'] = author_id
-        if channel_id:
-            filters['id'] = channel_id
+        # 🧩 اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['province_id__in'] = province_ids
 
-        channels = Channel.objects.filter(**filters)
+        if platform_ids:
+            filters['platform_id__in'] = platform_ids
+
+        if author_ids:
+            filters['posts__author_id__in'] = author_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'id__in' in filters:
+                valid_channels = filters['id__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['id__in'] = list(valid_channels)
+            else:
+                filters['id__in'] = list(requested_channel_ids)
+
+        # ✅ فیلتر کانال‌ها
+        channels = Channel.objects.filter(**filters).distinct()
         result = []
 
+        # 📅 فیلتر تاریخ
+        start_date_parsed = parse_date(start_date) if start_date else None
+        end_date_parsed = parse_date(end_date) if end_date else None
+
+        if start_date and end_date:
+            if not start_date_parsed or not end_date_parsed:
+                return Response(
+                    {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
+                    status=400
+                )
+
+        # 📊 محاسبه آمار برای هر کانال
         for channel in channels:
             posts = Post.objects.filter(channel=channel)
 
+            # 🔎 جستجو
             if search_query:
                 posts = posts.filter(
                     Q(post_text__icontains=search_query) |
@@ -364,15 +491,8 @@ class ChannelStatsViewSet(viewsets.ViewSet):
                     Q(channel__name__icontains=search_query)
                 ).distinct()
 
-            start_date_parsed = parse_date(start_date) if start_date else None
-            end_date_parsed = parse_date(end_date) if end_date else None
-
-            if start_date and end_date:
-                if not start_date_parsed or not end_date_parsed:
-                    return Response(
-                        {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            # 📅 فیلتر تاریخ
+            if start_date_parsed and end_date_parsed:
                 posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
             total_posts = posts.count()
@@ -385,23 +505,37 @@ class ChannelStatsViewSet(viewsets.ViewSet):
                 "channel_name": channel.name,
                 "channel_picture": picture_url,
                 "total_posts": total_posts,
-                "total_views": total_views
+                "total_views": total_views,
             })
 
+        # ✅ خروجی کاملاً بدون تغییر — مثل قبل
         return Response(result)
 
-
 class ChannelListViewSet(viewsets.ViewSet):
-    # permission_classes = [IsAdminOrOwnProvince]
-
     def list(self, request):
         user = request.user
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        author_id = request.query_params.get('author')
-        channel_id = request.query_params.get('channel')
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        province_str = request.query_params.get('province', '')
+        platform_str = request.query_params.get('platform', '')
+        author_str = request.query_params.get('author', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        province_ids = parse_ids(province_str)
+        platform_ids = parse_ids(platform_str)
+        author_ids = parse_ids(author_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -410,22 +544,36 @@ class ChannelListViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['province_id'] = province_id
-        if platform_id:
-            filters['platform_id'] = platform_id
-        if author_id:
-            filters['posts__author_id'] = author_id
-        if channel_id:
-            filters['id'] = channel_id
+        # 🧩 اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['province_id__in'] = province_ids
 
-        channels = Channel.objects.filter(**filters).prefetch_related('members', 'posts')
+        if platform_ids:
+            filters['platform_id__in'] = platform_ids
 
-        # فیلتر بر اساس بازه زمانی (در صورت وجود)
+        if author_ids:
+            filters['posts__author_id__in'] = author_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'id__in' in filters:
+                valid_channels = filters['id__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['id__in'] = list(valid_channels)
+            else:
+                filters['id__in'] = list(requested_channel_ids)
+
+        # ⏳ مرحله ۱: فیلتر کانال‌ها بر اساس دسترسی و فیلترهای کاربر
+        channels = Channel.objects.filter(**filters).prefetch_related('members', 'posts').distinct()
+
+        # 📅 مرحله ۲: فیلتر تاریخ (اگر مشخص شده باشد)
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -433,26 +581,47 @@ class ChannelListViewSet(viewsets.ViewSet):
             if not start_date_parsed or not end_date_parsed:
                 return Response(
                     {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
-            posts = Post.objects.filter(channel__in=channels, collected_at__range=[start_date_parsed, end_date_parsed])
-            channels = Channel.objects.filter(posts__in=posts).distinct()
 
-        serializer = ChannelDetailSerializer(channels.distinct(), many=True)
+            # پست‌های فیلتر شده در بازه زمانی
+            posts_in_range = Post.objects.filter(
+                channel__in=channels,
+                collected_at__range=[start_date_parsed, end_date_parsed]
+            )
+
+            # فقط کانال‌هایی که در آن بازه پست داشتن
+            channels = channels.filter(posts__in=posts_in_range).distinct()
+
+        # ✅ سریالایز و خروجی — کاملاً بدون تغییر
+        serializer = ChannelDetailSerializer(channels, many=True)
         return Response(serializer.data)
 
 
 class AuthorStatsViewSet(viewsets.ViewSet):
-    # permission_classes = [IsAdminOrOwnProvince]
-
     def list(self, request):
         user = request.user
         search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        channel_id = request.query_params.get('channel')
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        province_str = request.query_params.get('province', '')
+        platform_str = request.query_params.get('platform', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        province_ids = parse_ids(province_str)
+        platform_ids = parse_ids(platform_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -461,20 +630,33 @@ class AuthorStatsViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['channel__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['channel__province_id'] = province_id
-        if platform_id:
-            filters['channel__platform_id'] = platform_id
-        if channel_id:
-            filters['channel__id'] = channel_id
+        # 🧩 اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['channel__province_id__in'] = province_ids
 
-        # 📦 فیلتر پست‌ها بر اساس دسترسی و فیلترهای کاربر
+        if platform_ids:
+            filters['channel__platform_id__in'] = platform_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'channel__in' in filters:
+                valid_channels = filters['channel__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['channel__in'] = list(valid_channels)
+            else:
+                filters['channel__in'] = list(requested_channel_ids)
+
+        # 📦 فیلتر پست‌ها
         posts = Post.objects.filter(**filters)
 
+        # 🔍 جستجو
         if search_query:
             posts = posts.filter(
                 Q(post_text__icontains=search_query) |
@@ -483,7 +665,7 @@ class AuthorStatsViewSet(viewsets.ViewSet):
                 Q(channel__name__icontains=search_query)
             ).distinct()
 
-        # فیلتر تاریخ
+        # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -491,7 +673,7 @@ class AuthorStatsViewSet(viewsets.ViewSet):
             if not start_date_parsed or not end_date_parsed:
                 return Response(
                     {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
             posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
@@ -514,16 +696,17 @@ class AuthorStatsViewSet(viewsets.ViewSet):
 
             result.append({
                 "author_id": author.id,
-                "author_name": author.full_name,
+                "author_name": getattr(author, 'full_name', f"{author.name} {author.family}"),
                 "author_picture": picture_url,
                 "total_posts": total_posts,
                 "total_views": total_views,
                 "color": COLORS[idx % len(COLORS)]
             })
 
-        # مرتب‌سازی بر اساس تعداد پست
+        # مرتب‌سازی بر اساس تعداد پست — مثل قبل
         result = sorted(result, key=lambda x: x['total_posts'], reverse=True)
 
+        # ✅ خروجی دقیقاً مثل قبل: یک لیست از نویسندگان
         return Response(result)
 
 
@@ -582,9 +765,24 @@ class ChannelMemberTrendViewSet(viewsets.ViewSet):
         user = request.user
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        channel_id = request.query_params.get('channel')  # ✅ فیلتر کانال
+
+        # ✅ خواندن پارامترها به صورت comma-separated
+        province_str = request.query_params.get('province', '')
+        platform_str = request.query_params.get('platform', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        province_ids = parse_ids(province_str)
+        platform_ids = parse_ids(platform_str)
+        channel_ids = parse_ids(channel_str)
 
         filters = {}
 
@@ -593,24 +791,40 @@ class ChannelMemberTrendViewSet(viewsets.ViewSet):
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
 
-            allowed_channel_ids = user.userprofile.channels.values_list('id', flat=True)
+            allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
-        # ✅ کاربر عادی هم می‌تونه از فیلترهای زیر استفاده کنه
-        if province_id:
-            filters['province_id'] = province_id
-        if platform_id:
-            filters['platform_id'] = platform_id
-        if channel_id:
-            filters['id'] = channel_id  # فقط یک کانال خاص
+        # 🧩 اعمال فیلترهای چندتایی با __in
+        if province_ids:
+            filters['province_id__in'] = province_ids
 
-        # ✅ گرفتن کانال‌های فیلتر شده
+        if platform_ids:
+            filters['platform_id__in'] = platform_ids
+
+        if channel_ids:
+            requested_channel_ids = set(channel_ids)
+            if 'id__in' in filters:
+                valid_channels = filters['id__in'] & requested_channel_ids
+                if not valid_channels:
+                    return Response(
+                        {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                        status=400
+                    )
+                filters['id__in'] = list(valid_channels)
+            else:
+                filters['id__in'] = list(requested_channel_ids)
+
+        # ✅ اعمال فیلترها روی کانال‌ها
         channels = Channel.objects.filter(**filters).distinct()
 
-        # ✅ گرفتن عضویت‌ها با فیلتر کانال
-        members = ChannelMember.objects.filter(channel__in=Subquery(channels.values('id')))
+        if not channels.exists():
+            return Response({
+                "trend": [],
+                "chart": [{"categories": [], "data": []}],
+                "total_members": 0
+            })
 
-        # ✅ فیلتر تاریخ
+        # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -618,61 +832,47 @@ class ChannelMemberTrendViewSet(viewsets.ViewSet):
             if not start_date_parsed or not end_date_parsed:
                 return Response(
                     {"error": "فرمت تاریخ نامعتبر است. استفاده از YYYY-MM-DD یا YYYY/MM/DD الزامی است."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=400
                 )
+
+        # 🔍 فیلتر اولیه روی ChannelMember
+        members = ChannelMember.objects.filter(channel__in=channels)
+
+        if start_date_parsed and end_date_parsed:
             members = members.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
-        # ✅ گرفتن آخرین member_count در هر روز برای هر کانال
-        latest_member_per_day = (
-            ChannelMember.objects
-            .filter(
-                channel=OuterRef('channel'),
-                collected_at=OuterRef('collected_at')
-            )
-            .order_by('-id')  # فرض: id بالاتر = آخرین داده
-        )
+        # ✅ گرفتن آخرین رکورد عضویت در هر روز (بر اساس id)
+        latest_per_day_subquery = ChannelMember.objects.filter(
+            channel=OuterRef('channel'),
+            collected_at=OuterRef('collected_at')
+        ).order_by('-id')
 
-        # ✅ فقط آخرین داده در هر روز برای هر کانال
-        daily_last_members = (
-            ChannelMember.objects
-            .filter(id=Subquery(latest_member_per_day.values('id')[:1]))
-            .order_by('collected_at', 'channel')
-        )
+        daily_latest = ChannelMember.objects.filter(
+            id=Subquery(latest_per_day_subquery.values('id')[:1])
+        ).filter(channel__in=channels)
 
-        # ✅ اعمال فیلتر کانال/استان/پلتفرم روی آخرین ممبرها
-        daily_last_members = daily_last_members.filter(channel__in=channels)
+        if start_date_parsed and end_date_parsed:
+            daily_latest = daily_latest.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
-        # ✅ گروه‌بندی بر اساس تاریخ و محاسبه مجموع
+        # 📊 گروه‌بندی بر اساس تاریخ و جمع member_count
         trend_data = {}
-        for obj in daily_last_members:
-            key = obj.collected_at.strftime("%Y-%m-%d")
-            if key not in trend_data:
-                trend_data[key] = []
-            trend_data[key].append(obj.member_count)
+        for obj in daily_latest:
+            date_key = obj.collected_at.strftime("%Y-%m-%d")
+            trend_data[date_key] = trend_data.get(date_key, 0) + obj.member_count
 
-        result = []
-        categories = []
-        data = []
+        # ✅ مرتب‌سازی بر اساس تاریخ
+        sorted_items = sorted(trend_data.items())
+        categories = [item[0] for item in sorted_items]
+        data = [item[1] for item in sorted_items]
 
-        for date_str, counts in sorted(trend_data.items()):
-            total = sum(counts)  # یا max(counts) اگر منظورت جمع نباشه
-            result.append({
-                "date": date_str,
-                "total_members": total
-            })
-            categories.append(date_str)
-            data.append(total)
+        result = [{"date": date, "total_members": total} for date, total in sorted_items]
+        total_members = data[-1] if data else 0
 
         chart_format = [{
             "categories": categories,
-            "data": data
+            "data": data,
+            "color": "#b2532f"
         }]
-
-        total_members = 0
-        if result:
-            total_members = result[-1]['total_members']  # آخرین روز
-
-        print(total_members)
 
         return Response({
             "trend": result,
@@ -683,7 +883,7 @@ class ChannelMemberTrendViewSet(viewsets.ViewSet):
 
 class UserLastPostsViewSet(viewsets.ViewSet):
     """
-    نمایش پست‌های کاربر با تمام فیلترهای ممکن
+    نمایش پست‌های کاربر با تمام فیلترهای ممکن (با پشتیبانی از فرمت comma-separated)
     """
 
     def list(self, request):
@@ -696,34 +896,62 @@ class UserLastPostsViewSet(viewsets.ViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # 🎯 دریافت تمام پارامترهای فیلتر
-        search_query = request.query_params.get('search')
+        # 🎯 دریافت تمام پارامترهای فیلتر — به صورت comma-separated
+        search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        platform_id = request.query_params.get('platform')
-        province_id = request.query_params.get('province')
-        author_id = request.query_params.get('author')
-        channel_id = request.query_params.get('channel')
+
+        platform_str = request.query_params.get('platform', '')
+        province_str = request.query_params.get('province', '')
+        author_str = request.query_params.get('author', '')
+        channel_str = request.query_params.get('channel', '')
+
+        # 🧹 تابع کمکی برای تبدیل "1,2,3" به لیست عدد
+        def parse_ids(s):
+            if not s.strip():
+                return []
+            try:
+                return [int(x.strip()) for x in s.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        platform_ids = parse_ids(platform_str)
+        province_ids = parse_ids(province_str)
+        author_ids = parse_ids(author_str)
+        channel_ids = parse_ids(channel_str)
 
         # 🛡️ فیلترهای پایه - فقط کانال‌های مجاز کاربر
+        allowed_channels = user.userprofile.channels.only('id')  # فقط آی‌دی لازمه
+        allowed_channel_ids = set(allowed_channels.values_list('id', flat=True))
+
         base_filters = {
-            'channel__in': user.userprofile.channels.all()
+            'channel__in': allowed_channels
         }
 
-        # ➕ افزودن فیلترهای اختیاری
-        if channel_id:
-            base_filters['channel__id'] = channel_id
-        if author_id:
-            base_filters['author__id'] = author_id
-        if platform_id:
-            base_filters['channel__platform__id'] = platform_id
-        if province_id:
-            base_filters['channel__province__id'] = province_id
+        # ➕ افزودن فیلترهای اختیاری با __in
+        if channel_ids:
+            requested_ids = set(channel_ids)
+            valid_channel_ids = allowed_channel_ids & requested_ids
+            if not valid_channel_ids:
+                return Response(
+                    {"error": "کانال‌های انتخاب شده یا وجود ندارند یا دسترسی ندارید."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            base_filters['channel__id__in'] = list(valid_channel_ids)
+
+        if author_ids:
+            base_filters['author__id__in'] = author_ids
+
+        if platform_ids:
+            base_filters['channel__platform__id__in'] = platform_ids
+
+        if province_ids:
+            base_filters['channel__province__id__in'] = province_ids
 
         # 📝 دریافت پست‌ها با فیلترهای پایه
         posts = Post.objects.filter(**base_filters)
 
-        # 🔍 فیلتر جستجو (اگر وجود دارد)
+        # 🔍 فیلتر جستجو
         if search_query:
             posts = posts.filter(
                 Q(post_text__icontains=search_query) |
@@ -733,7 +961,7 @@ class UserLastPostsViewSet(viewsets.ViewSet):
                 Q(channel__name__icontains=search_query)
             ).distinct()
 
-        # 📅 فیلتر تاریخ (اگر وجود دارد)
+        # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
 
@@ -745,28 +973,29 @@ class UserLastPostsViewSet(viewsets.ViewSet):
                 )
             posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
 
-        # محاسبه آمار قبل از محدود کردن
+        # محاسبه آمار
         total_posts = posts.count()
         total_views = posts.aggregate(Sum('views'))['views__sum'] or 0
 
-        # مرتب‌سازی و محدود کردن نتایج
+        # مرتب‌سازی و محدود کردن به 10 پست آخر
         posts = posts.select_related(
             'channel',
             'author',
             'channel__platform',
             'channel__province'
-        ).order_by('-collected_at')[:10]  # 10 پست آخر
+        ).order_by('-collected_at')[:10]
 
         serializer = PostSerializer(posts, many=True)
 
+        # ✅ خروجی کاملاً مشابه قبل — بدون هیچ تغییری در ساختار
         return Response({
             "total_posts": total_posts,
             "total_views": total_views,
             "filters": {
-                "platform": platform_id,
-                "province": province_id,
-                "author": author_id,
-                "channel": channel_id,
+                "platform": platform_ids[0] if platform_ids else None,
+                "province": province_ids[0] if province_ids else None,
+                "author": author_ids[0] if author_ids else None,
+                "channel": channel_ids[0] if channel_ids else None,
                 "start_date": start_date,
                 "end_date": end_date,
                 "search_query": search_query
