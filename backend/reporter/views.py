@@ -711,9 +711,34 @@ class AuthorStatsViewSet(viewsets.ViewSet):
 
 
 class PostViewSet(viewsets.ModelViewSet):
-    queryset = Post.objects.all()
     serializer_class = PostSerializer
     permission_classes = [CanAccessPanel]
+
+    def get_queryset(self):
+        queryset = Post.objects.all()
+
+        # تابع کمکی برای تبدیل "1,2,3" به لیست اعداد
+        def parse_ids(param):
+            if not param:
+                return None
+            try:
+                return [int(x.strip()) for x in param.split(',') if x.strip().isdigit()]
+            except ValueError:
+                return []
+
+        # فیلتر بر اساس channel (آی‌دی کانال)
+        channel_param = self.request.query_params.get('channel', None)
+        channel_ids = parse_ids(channel_param)
+        if channel_ids:
+            queryset = queryset.filter(channel_id__in=channel_ids)
+
+        # فیلتر بر اساس platform (آی‌دی پلتفرم)
+        platform_param = self.request.query_params.get('platform', None)
+        platform_ids = parse_ids(platform_param)
+        if platform_ids:
+            queryset = queryset.filter(channel__platform_id__in=platform_ids)
+
+        return queryset
 
 
 class ChannelMemberViewSet(viewsets.ModelViewSet):
@@ -742,19 +767,31 @@ class ReadOnlyAuthorViewSet(viewsets.ViewSet):
 
 
 class ReadOnlyChannelViewSet(viewsets.ViewSet):
-    # permission_classes = [IsAuthenticated]  # فقط کاربران لاگین‌کرده
     serializer_class = ChannelSerializer
     permission_classes = [CanAccessPanel]
 
     def list(self, request):
         queryset = Channel.objects.all()
+
+        # اضافه کردن فیلتر platform اگر در query_params باشد
+        platform = request.query_params.get('platform')
+        if platform is not None:
+            queryset = queryset.filter(platform=platform)
+
         serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         try:
-            author = Channel.objects.get(pk=pk)
-            serializer = self.serializer_class(author)
+            # ابتدا چنل را با pk می‌گیریم
+            channel = Channel.objects.get(pk=pk)
+
+            # بررسی فیلتر platform
+            platform = request.query_params.get('platform')
+            if platform is not None and str(channel.platform.id) != str(platform):
+                return Response({"error": "چنل مورد نظر با پلتفرم مشخص شده مطابقت ندارد."}, status=404)
+
+            serializer = self.serializer_class(channel)
             return Response(serializer.data)
         except Channel.DoesNotExist:
             return Response({"error": "نویسنده یافت نشد"}, status=404)
@@ -1010,5 +1047,38 @@ class AuthorViewSet(viewsets.ModelViewSet):
     permission_classes = [CanAccessPanel]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['name', 'family', 'username']
+
+
+class ProvinceListViewSet(viewsets.ViewSet):
+    """
+    نمایش لیست استان‌هایی که کاربر به کانال‌های آن‌ها دسترسی دارد.
+    - ادمین: همه استان‌ها
+    - کاربر عادی: فقط استان‌های مرتبط با کانال‌هایش
+    """
+
+    def list(self, request):
+        user = request.user
+
+        # 🔐 اگر کاربر لاگین نکرده
+        if not user.is_authenticated:
+            return Response({"error": "لاگین الزامی است."}, status=401)
+
+        # 🟢 ادمین: همه استان‌ها
+        if user.is_superuser:
+            provinces = Province.objects.all().order_by('name')
+
+        # 🔐 کاربر عادی: فقط استان‌هایی که کانال‌هایش در اون‌ها قرار دارند
+        else:
+            if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
+                return Response([], status=200)  # کاربر به کانالی دسترسی نداره
+
+            # گرفتن استان‌های مرتبط با کانال‌های کاربر
+            provinces = Province.objects.filter(
+                id__in=user.userprofile.channels.values_list('province_id', flat=True)
+            ).distinct().order_by('name')
+
+        # ✅ سریالایز و پاسخ
+        serializer = ProvinceSerializer(provinces, many=True)
+        return Response(serializer.data)
 
 

@@ -38,6 +38,7 @@ class ChannelMember(models.Model):
 # مدل ۳: پست کانال
 class Post(models.Model):
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='posts', verbose_name="کانال")
+    # platform = models.CharField("platform", max_length=100, null=True, blank=True)
     post_text = models.TextField("متن پست", null=True, blank=True)
     hashtags = models.TextField("هشتگ‌ها", null=True, blank=True)  # "tag1 tag2 tag3"
     author = models.ForeignKey('Author', on_delete=models.CASCADE, verbose_name="نویسنده")
@@ -102,6 +103,7 @@ class Post(models.Model):
 
     # ✅ فیلد جدید: date - تاریخ ارسال پیام در تلگرام
     date = models.DateTimeField("تاریخ ارسال پیام", null=True, blank=True)
+
 
 
     class Meta:
