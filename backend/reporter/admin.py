@@ -44,7 +44,7 @@ class ChannelMemberAdmin(admin.ModelAdmin):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ('channel', 'collected_at', 'views')
+    list_display = ('channel', 'collected_at', 'views', 'date')
     list_filter = ('channel__platform', 'channel__province', 'collected_at')
     search_fields = ('post_text', 'hashtags')
 

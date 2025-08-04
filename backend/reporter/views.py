@@ -50,7 +50,6 @@ class DashboardViewSet(viewsets.ViewSet):
         search_query = request.query_params.get('search', None)
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-
         # ✅ خواندن پارامترها به صورت comma-separated
         platform_str = request.query_params.get('platform', '')
         province_str = request.query_params.get('province', '')
@@ -77,17 +76,14 @@ class DashboardViewSet(viewsets.ViewSet):
         if not user.is_superuser:
             if not hasattr(user, 'userprofile') or not user.userprofile.channels.exists():
                 return Response({"error": "شما به هیچ کانالی دسترسی ندارید."}, status=403)
-
             allowed_channel_ids = set(user.userprofile.channels.values_list('id', flat=True))
             filters['id__in'] = allowed_channel_ids
 
         # ✅ اعمال فیلترهای چندتایی با __in
         if province_ids:
             filters['province_id__in'] = province_ids
-
         if platform_ids:
             filters['platform_id__in'] = platform_ids
-
         if channel_ids:
             requested_channel_ids = set(channel_ids)
             if 'id__in' in filters:
@@ -119,7 +115,6 @@ class DashboardViewSet(viewsets.ViewSet):
         # 📅 فیلتر تاریخ
         start_date_parsed = parse_date(start_date) if start_date else None
         end_date_parsed = parse_date(end_date) if end_date else None
-
         if start_date and end_date:
             if not start_date_parsed or not end_date_parsed:
                 return Response(
@@ -127,6 +122,22 @@ class DashboardViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             posts = posts.filter(collected_at__range=[start_date_parsed, end_date_parsed])
+
+        # 🔁 دِدَپلیکیت: فقط یک پست با بیشترین ویو از هر (کانال، زمان، متن) نگه داشته شود
+        from django.db.models import OuterRef, Subquery
+
+        # زیرپرس‌وی: برای هر ترکیب (channel_id, collected_at, post_text)، پستی با بیشترین views (و در صورت تساوی، آخرین id) انتخاب شود
+        latest_post_subquery = Post.objects.filter(
+            channel_id=OuterRef('channel_id'),
+            collected_at=OuterRef('collected_at'),
+            post_text=OuterRef('post_text'),
+        ).order_by('-views', '-id')
+
+        posts = posts.filter(
+            id__in=Subquery(latest_post_subquery.values('id')[:1])
+        ).distinct()
+
+        # ⚙️ از اینجا به بعد، تمام آمار بر اساس پست‌های غیرتکراری محاسبه می‌شود
 
         # تعداد کل
         total_posts = posts.count()
@@ -161,11 +172,6 @@ class DashboardViewSet(viewsets.ViewSet):
             "data": [item['total_views'] for item in view_trend],
             "color": "#b2532f"
         }]
-
-        # COLORS = [
-        #     "#347928", "#C0EBA6", "#FFFBE6", "#FCCD2A", "#38C172",
-        #     "#50C878", "#69B076", "#77DD77", "#88C999", "#A8D8B9"
-        # ]
 
         COLORS = [
             "#9b4929", "#b2532f", "#fe7743", "#fe8e63", "#feb092",
@@ -229,23 +235,12 @@ class DashboardViewSet(viewsets.ViewSet):
         top_hashtags_by_post = [{"name": h[0], "weight": h[1]} for h in hashtag_freq]
 
         # 📈 تعداد پست‌ها بر اساس پلتفرم
-        # platform_post_counts = (
-        #     Channel.objects.filter(**filters)
-        #     .values('platform__name')
-        #     .annotate(count=Count('posts', filter=Q(posts__in=posts)))
-        #     .order_by('-count')
-        # )
-        # platform_post_counts_list = [
-        #     {"name": item['platform__name'], "y": item['count']} for item in platform_post_counts
-        # ]
-
         platform_post_counts = (
             Channel.objects.filter(**filters)
-                .values('platform__name')
-                .annotate(count=Count('posts', filter=Q(posts__in=posts)))
-                .order_by('-count')
+            .values('platform__name')
+            .annotate(count=Count('posts', filter=Q(posts__in=posts)))
+            .order_by('-count')
         )
-
         platform_post_counts_list = [
             {
                 "name": item['platform__name'],
@@ -256,22 +251,12 @@ class DashboardViewSet(viewsets.ViewSet):
         ]
 
         # 👁️ مجموع بازدیدها بر اساس پلتفرم
-        # platform_total_views = (
-        #     Channel.objects.filter(**filters)
-        #     .values('platform__name')
-        #     .annotate(total_views=Sum('posts__views', filter=Q(posts__in=posts)))
-        #     .order_by('-total_views')
-        # )
-        # platform_total_views_list = [
-        #     {"name": item['platform__name'], "y": item['total_views'] or 0} for item in platform_total_views
-        # ]
         platform_total_views = (
             Channel.objects.filter(**filters)
-                .values('platform__name')
-                .annotate(total_views=Sum('posts__views', filter=Q(posts__in=posts)))
-                .order_by('-total_views')
+            .values('platform__name')
+            .annotate(total_views=Sum('posts__views', filter=Q(posts__in=posts)))
+            .order_by('-total_views')
         )
-
         platform_total_views_list = [
             {
                 "name": item['platform__name'],
@@ -297,7 +282,6 @@ class DashboardViewSet(viewsets.ViewSet):
             "platform_post_counts": platform_post_counts_list,
             "platform_total_views": platform_total_views_list
         })
-
 
 class PlatformStatsViewSet(viewsets.ViewSet):
     def list(self, request):
@@ -714,6 +698,33 @@ class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [CanAccessPanel]
 
+    # def create(self, request, *args, **kwargs):
+    #     serializer = self.get_serializer(data=request.data)
+    #     serializer.is_valid(raise_exception=True)
+    #
+    #     # بررسی وجود پست تکراری
+    #     data = serializer.validated_data
+    #     post, created = Post.objects.get_or_create(
+    #         channel=data['channel'],
+    #         date=data['date'],
+    #         post_text=data['post_text'],
+    #         hashtags=data['hashtags'],
+    #         defaults=data
+    #     )
+    #
+    #     if not created:
+    #         return Response(
+    #             {"detail": "این پست قبلاً ثبت شده است."},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
+    #
+    #     headers = self.get_success_headers(serializer.data)
+    #     return Response(
+    #         serializer.data,
+    #         status=status.HTTP_201_CREATED,
+    #         headers=headers
+    #     )
+
     def get_queryset(self):
         queryset = Post.objects.all()
 
@@ -739,6 +750,8 @@ class PostViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(channel__platform_id__in=platform_ids)
 
         return queryset
+
+
 
 
 class ChannelMemberViewSet(viewsets.ModelViewSet):

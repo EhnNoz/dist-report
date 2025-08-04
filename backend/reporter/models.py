@@ -42,8 +42,8 @@ class Post(models.Model):
     post_text = models.TextField("متن پست", null=True, blank=True)
     hashtags = models.TextField("هشتگ‌ها", null=True, blank=True)  # "tag1 tag2 tag3"
     author = models.ForeignKey('Author', on_delete=models.CASCADE, verbose_name="نویسنده")
-    views = models.PositiveIntegerField("تعداد بازدید")
-    collected_at = models.DateField("تاریخ جمع‌آوری")
+    # views = models.PositiveIntegerField("تعداد بازدید")
+    # collected_at = models.DateField("تاریخ جمع‌آوری")
 
     # فیلدهای جدید
     update_id = models.PositiveIntegerField("Update ID", null=True, blank=True)
@@ -109,6 +109,7 @@ class Post(models.Model):
     class Meta:
         verbose_name = "پست"
         verbose_name_plural = "پست‌ها"
+        # unique_together = ['channel', 'date', 'post_text', 'hashtags']
 
     def __str__(self):
         return self.hashtags
