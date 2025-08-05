@@ -22,12 +22,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),  # پنل ادمین
-    path('api/dist/', include('sender.urls')),
-    path('api/rep/', include('reporter.urls')),
-    path('api/sup/', include('support.urls')),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('sadmin/', admin.site.urls),  # پنل ادمین
+    path('sapi/dist/', include('sender.urls')),
+    path('sapi/rep/', include('reporter.urls')),
+    path('sapi/sup/', include('support.urls')),
+    path('sapi/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('sapi/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 # برای دسترسی به فایل‌های مدیا در محیط توسعه
